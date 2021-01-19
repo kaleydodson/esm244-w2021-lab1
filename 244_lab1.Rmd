@@ -1,0 +1,115 @@
+---
+title: "244 lab 1"
+author: "Kaley Dodson"
+date: "1/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(sf)
+library(tmap)
+```
+
+### read in sf_trees data
+
+```{r}
+sf_trees <- read_csv(here("data", "sf_trees", "sf_trees.csv"))
+```
+
+### basic wrangling reminders
+
+```{r}
+# find the top 5 highest observations of trees by legal status
+
+top_5_status <- sf_trees %>% 
+  count(legal_status) %>% 
+  drop_na(legal_status) %>% 
+  rename(tree_count = n) %>% 
+  relocate(tree_count) %>% 
+  slice_max(tree_count, n = 5)
+```
+
+```{r}
+# graph of top 5 observations by legal status
+
+ggplot(data = top_5_status, aes(x = fct_reorder(legal_status, tree_count), y = tree_count)) +
+  geom_col() + 
+  labs(x = "Legal Status", y = "Tree Count") +
+  coord_flip() +
+  theme_minimal()
+  
+```
+
+```{r}
+# keep observations for blackwood acacia trees
+
+blackwood_acacia <- sf_trees %>% 
+  filter(str_detect(species, "Blackwood Acacia")) %>% 
+  select(legal_status, date, latitude, longitude)
+
+# quick map 
+
+ggplot(data = blackwood_acacia, aes(x = longitude, y = latitude)) +
+  geom_point()
+```
+
+### tidyr::separate() and unite() functions
+
+```{r}
+sf_tres_sep <- sf_trees %>% 
+  separate(species, into = c("spp_scientific", "spp_common"), sep = "::") 
+```
+
+```{r}
+sf_trees_unite <- sf_trees %>% 
+  unite("id_status", tree_id:legal_status, sep = "_cool_")
+```
+
+# maps using spatial data
+
+`st_as_sf()` to convert lat and long to spatial coordinates
+
+```{r}
+blackwood_acacia_sp <- blackwood_acacia %>% 
+  drop_na(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"))
+
+st_crs(blackwood_acacia_sp) = 4326
+
+ggplot(data = blackwood_acacia_sp) +
+  geom_sf(color = "darkgreen")
+```
+
+```{r}
+# read in SF roads shape file
+
+sf_map <- read_sf(here("data", "sf_map", "tl_2017_06075_roads.shp"))
+
+st_transform(sf_map, 4326)
+
+ggplot(data = sf_map) +
+  geom_sf()
+```
+
+```{r}
+# combine ba observations w/ SF roads
+
+ggplot() +
+  geom_sf(data = sf_map, size = .1, color = "darkgrey") +
+  geom_sf(data = blackwood_acacia_sp, size = .5, color = "green") +
+  theme_void()
+```
+
+```{r}
+# create an interactive map
+
+tmap_mode("view")
+
+tm_shape(blackwood_acacia_sp) +
+  tm_dots()
+```
+
